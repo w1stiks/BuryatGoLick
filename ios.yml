@@ -1,0 +1,41 @@
+name: Build BuryatGo IPA (iPhone)
+
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  ipa:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check JavaScript syntax
+        run: for f in android/app/src/main/assets/www/js/*.js; do node --check "$f"; done
+
+      - name: Install XcodeGen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        working-directory: ios
+        run: xcodegen generate
+
+      - name: Build app (unsigned)
+        working-directory: ios
+        run: |
+          xcodebuild -project BuryatGo.xcodeproj -target BuryatGo -configuration Release -sdk iphoneos \
+            SYMROOT="$PWD/build" CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" build
+
+      - name: Package IPA
+        run: |
+          rm -rf out && mkdir -p out/Payload
+          cp -R ios/build/Release-iphoneos/BuryatGo.app out/Payload/
+          test -f out/Payload/BuryatGo.app/www/index.html
+          cd out && zip -qry BuryatGo.ipa Payload && ls -la BuryatGo.ipa
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: BuryatGo-ipa
+          path: out/BuryatGo.ipa
